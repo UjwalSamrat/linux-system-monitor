@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Space+Grotesk:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0c10;
+    --surface: #10141c;
+    --surface2: #171d28;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #e2e8f4;
+    --muted: #5a6580;
+    --dim: #8896b0;
+    --cpu: #3b82f6;
+    --cpu-glow: rgba(59,130,246,0.15);
+    --ram: #10b981;
+    --ram-glow: rgba(16,185,129,0.15);
+    --disk: #f59e0b;
+    --disk-glow: rgba(245,158,11,0.15);
+    --danger: #ef4444;
+    --warn: #f59e0b;
+    --ok: #10b981;
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-ui: 'Space Grotesk', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    min-height: 100vh;
+    padding: 0;
+    overflow-x: hidden;
+  }
+
+  /* scanline effect */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.03) 2px,
+      rgba(0,0,0,0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 16px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(10px);
+  }
+
+  .logo {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.15em;
+    color: var(--cpu);
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--cpu);
+    box-shadow: 0 0 8px var(--cpu);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .refresh-badge {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+  }
+
+  #last-update {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--dim);
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border2);
+    background: var(--surface2);
+    letter-spacing: 0.05em;
+  }
+
+  .status-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--ok);
+    box-shadow: 0 0 6px var(--ok);
+  }
+
+  .status-dot.warn { background: var(--warn); box-shadow: 0 0 6px var(--warn); }
+  .status-dot.danger { background: var(--danger); box-shadow: 0 0 6px var(--danger); }
+
+  main {
+    padding: 28px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .section-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+    padding-left: 2px;
+  }
+
+  /* Gauge row */
+  .gauges {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  .gauge-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px 24px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s;
+  }
+
+  .gauge-card:hover { border-color: var(--border2); }
+
+  .gauge-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    border-radius: 12px 12px 0 0;
+  }
+
+  .gauge-card.cpu::before { background: var(--cpu); }
+  .gauge-card.ram::before { background: var(--ram); }
+  .gauge-card.disk::before { background: var(--disk); }
+
+  .gauge-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 18px;
+  }
+
+  .gauge-label {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .gauge-value {
+    font-family: var(--font-mono);
+    font-size: 36px;
+    font-weight: 300;
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+
+  .gauge-value .unit {
+    font-size: 16px;
+    color: var(--muted);
+    font-weight: 300;
+  }
+
+  .gauge-card.cpu .gauge-value { color: var(--cpu); }
+  .gauge-card.ram .gauge-value { color: var(--ram); }
+  .gauge-card.disk .gauge-value { color: var(--disk); }
+
+  .gauge-sub {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    margin-top: 4px;
+  }
+
+  .progress-track {
+    height: 4px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 2px;
+    margin-top: 16px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  .gauge-card.cpu .progress-fill { background: var(--cpu); }
+  .gauge-card.ram .progress-fill { background: var(--ram); }
+  .gauge-card.disk .progress-fill { background: var(--disk); }
+
+  .gauge-glow {
+    position: absolute;
+    bottom: -30px; right: -30px;
+    width: 120px; height: 120px;
+    border-radius: 50%;
+    opacity: 0.06;
+    pointer-events: none;
+  }
+
+  .gauge-card.cpu .gauge-glow { background: var(--cpu); }
+  .gauge-card.ram .gauge-glow { background: var(--ram); }
+  .gauge-card.disk .gauge-glow { background: var(--disk); }
+
+  /* Charts */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px 24px;
+  }
+
+  .chart-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .chart-title {
+    font-size: 12px;
+    font-family: var(--font-mono);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+
+  .chart-badge {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.05em;
+  }
+
+  .chart-badge.live {
+    background: rgba(16,185,129,0.1);
+    color: var(--ok);
+    border: 1px solid rgba(16,185,129,0.2);
+  }
+
+  .chart-wrap { position: relative; height: 180px; }
+
+  /* Bottom stats */
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+  }
+
+  .stat-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+
+  .stat-box-label {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .stat-box-val {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    font-weight: 400;
+    color: var(--text);
+  }
+
+  .stat-box-val span {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 300;
+  }
+
+  /* Error state */
+  .error-bar {
+    background: rgba(239,68,68,0.08);
+    border: 1px solid rgba(239,68,68,0.2);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: #fca5a5;
+    margin-bottom: 20px;
+    display: none;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .error-bar.visible { display: flex; }
+
+  @media (max-width: 640px) {
+    main { padding: 16px; }
+    header { padding: 12px 16px; }
+    .gauge-value { font-size: 28px; }
+    .charts-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    SYS_MONITOR
+  </div>
+  <div class="header-right">
+    <div class="refresh-badge">REFRESH / 2s</div>
+    <div id="last-update">--:--:--</div>
+    <div class="status-pill">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text">LIVE</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="error-bar" id="error-bar">
+    <span>⚠</span>
+    <span id="error-msg">Unable to reach /metrics — showing simulated data</span>
+  </div>
+
+  <div class="section-label">// resource usage</div>
+
+  <div class="gauges">
+    <div class="gauge-card cpu">
+      <div class="gauge-glow"></div>
+      <div class="gauge-header">
+        <div>
+          <div class="gauge-label">CPU Usage</div>
+          <div class="gauge-sub" id="cpu-cores">— cores</div>
+        </div>
+        <div class="gauge-value" id="cpu-val">—<span class="unit">%</span></div>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="cpu-bar" style="width:0%"></div>
+      </div>
+    </div>
+
+    <div class="gauge-card ram">
+      <div class="gauge-glow"></div>
+      <div class="gauge-header">
+        <div>
+          <div class="gauge-label">RAM Usage</div>
+          <div class="gauge-sub" id="ram-sub">— / — GB</div>
+        </div>
+        <div class="gauge-value" id="ram-val">—<span class="unit">%</span></div>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="ram-bar" style="width:0%"></div>
+      </div>
+    </div>
+
+    <div class="gauge-card disk">
+      <div class="gauge-glow"></div>
+      <div class="gauge-header">
+        <div>
+          <div class="gauge-label">Disk Usage</div>
+          <div class="gauge-sub" id="disk-sub">— / — GB</div>
+        </div>
+        <div class="gauge-value" id="disk-val">—<span class="unit">%</span></div>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="disk-bar" style="width:0%"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-label">// history — last 60s</div>
+
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-card-header">
+        <div class="chart-title">CPU — time series</div>
+        <div class="chart-badge live">LIVE</div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="cpuChart" role="img" aria-label="CPU usage over time line chart"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-card-header">
+        <div class="chart-title">RAM — time series</div>
+        <div class="chart-badge live">LIVE</div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="ramChart" role="img" aria-label="RAM usage over time line chart"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-card-header">
+        <div class="chart-title">Storage — breakdown</div>
+        <div class="chart-badge live">LIVE</div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="diskChart" role="img" aria-label="Disk usage donut chart showing used vs free space"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-card-header">
+        <div class="chart-title">CPU vs RAM — comparison</div>
+        <div class="chart-badge live">LIVE</div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="compareChart" role="img" aria-label="CPU and RAM usage comparison bar chart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-label">// system snapshot</div>
+
+  <div class="stat-row">
+    <div class="stat-box">
+      <div class="stat-box-label">CPU Peak</div>
+      <div class="stat-box-val" id="cpu-peak">—<span>%</span></div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-box-label">CPU Avg</div>
+      <div class="stat-box-val" id="cpu-avg">—<span>%</span></div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-box-label">RAM Peak</div>
+      <div class="stat-box-val" id="ram-peak">—<span>%</span></div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-box-label">RAM Avg</div>
+      <div class="stat-box-val" id="ram-avg">—<span>%</span></div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-box-label">Disk Free</div>
+      <div class="stat-box-val" id="disk-free">—<span> GB</span></div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-box-label">Uptime</div>
+      <div class="stat-box-val" id="uptime">—</div>
+    </div>
+  </div>
+</main>
+
+<script>
+const MAX_POINTS = 30;
+const REFRESH_MS = 2000;
+
+let cpuHistory = [];
+let ramHistory = [];
+let labels = [];
+let startTime = Date.now();
+let useSimulated = false;
+let fetchFails = 0;
+
+// ── Chart defaults ──────────────────────────────────────────────
+Chart.defaults.color = '#5a6580';
+Chart.defaults.borderColor = 'rgba(255,255,255,0.05)';
+Chart.defaults.font.family = "'JetBrains Mono', monospace";
+Chart.defaults.font.size = 10;
+
+const lineOpts = (color) => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  animation: { duration: 400 },
+  plugins: { legend: { display: false }, tooltip: {
+    backgroundColor: '#10141c',
+    borderColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    titleColor: '#8896b0',
+    bodyColor: '#e2e8f4',
+    padding: 10,
+    callbacks: { label: ctx => ` ${ctx.parsed.y.toFixed(1)}%` }
+  }},
+  scales: {
+    x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { maxTicksLimit: 6, maxRotation: 0 } },
+    y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.04)' },
+      ticks: { callback: v => v + '%', stepSize: 25 } }
+  }
+});
+
+function makeDataset(color, label) {
+  return {
+    label,
+    data: [],
+    borderColor: color,
+    backgroundColor: color + '18',
+    borderWidth: 1.5,
+    pointRadius: 0,
+    pointHoverRadius: 3,
+    fill: true,
+    tension: 0.4
+  };
+}
+
+const cpuChart = new Chart(document.getElementById('cpuChart'), {
+  type: 'line',
+  data: { labels: [], datasets: [makeDataset('#3b82f6', 'CPU')] },
+  options: lineOpts('#3b82f6')
+});
+
+const ramChart = new Chart(document.getElementById('ramChart'), {
+  type: 'line',
+  data: { labels: [], datasets: [makeDataset('#10b981', 'RAM')] },
+  options: lineOpts('#10b981')
+});
+
+const diskChart = new Chart(document.getElementById('diskChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Used', 'Free'],
+    datasets: [{
+      data: [0, 100],
+      backgroundColor: ['#f59e0b', 'rgba(255,255,255,0.05)'],
+      borderColor: ['#f59e0b22', 'transparent'],
+      borderWidth: 1,
+      hoverOffset: 4
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: '72%',
+    animation: { duration: 600 },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#10141c',
+        borderColor: 'rgba(255,255,255,0.1)',
+        borderWidth: 1,
+        bodyColor: '#e2e8f4',
+        padding: 10,
+        callbacks: { label: ctx => ` ${ctx.parsed.toFixed(1)}%` }
+      }
+    }
+  }
+});
+
+const compareChart = new Chart(document.getElementById('compareChart'), {
+  type: 'bar',
+  data: {
+    labels: ['CPU', 'RAM'],
+    datasets: [{
+      label: 'Current %',
+      data: [0, 0],
+      backgroundColor: ['#3b82f620', '#10b98120'],
+      borderColor: ['#3b82f6', '#10b981'],
+      borderWidth: 1.5,
+      borderRadius: 4
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 400 },
+    plugins: { legend: { display: false }, tooltip: {
+      backgroundColor: '#10141c',
+      borderColor: 'rgba(255,255,255,0.1)',
+      borderWidth: 1,
+      bodyColor: '#e2e8f4',
+      padding: 10,
+      callbacks: { label: ctx => ` ${ctx.parsed.y.toFixed(1)}%` }
+    }},
+    scales: {
+      x: { grid: { display: false } },
+      y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.04)' },
+        ticks: { callback: v => v + '%', stepSize: 25 } }
+    }
+  }
+});
+
+// ── Simulated fallback ──────────────────────────────────────────
+let simCpu = 35, simRam = 55, simDiskUsed = 220, simDiskTotal = 500;
+let simDiskPct = (simDiskUsed / simDiskTotal) * 100;
+
+function simMetrics() {
+  simCpu = Math.min(99, Math.max(1, simCpu + (Math.random() - 0.46) * 8));
+  simRam = Math.min(99, Math.max(20, simRam + (Math.random() - 0.48) * 4));
+  simDiskUsed = Math.min(simDiskTotal, Math.max(50, simDiskUsed + (Math.random() - 0.49) * 2));
+  simDiskPct = (simDiskUsed / simDiskTotal) * 100;
+  return {
+    cpu: { usage: +simCpu.toFixed(1), cores: 8 },
+    ram: { usage: +simRam.toFixed(1), used_gb: +(simRam / 100 * 16).toFixed(1), total_gb: 16 },
+    disk: { usage: +simDiskPct.toFixed(1), used_gb: +simDiskUsed.toFixed(0), total_gb: simDiskTotal },
+    uptime_seconds: Math.floor((Date.now() - startTime) / 1000) + 3600 * 24 * 3
+  };
+}
+
+// ── Fetch + update ──────────────────────────────────────────────
+async function fetchMetrics() {
+  if (useSimulated) return simMetrics();
+  try {
+    const res = await fetch('http://127.0.0.1:8000/metrics', { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    fetchFails = 0;
+    return data;
+  } catch (e) {
+    fetchFails++;
+    if (fetchFails >= 2) {
+      useSimulated = true;
+      document.getElementById('error-bar').classList.add('visible');
+      document.getElementById('error-msg').textContent =
+        'Unable to reach /metrics — showing simulated data';
+    }
+    return simMetrics();
+  }
+}
+
+function fmtUptime(s) {
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m ${Math.floor(s % 60)}s`;
+}
+
+function statusColor(pct) {
+  if (pct >= 85) return 'danger';
+  if (pct >= 65) return 'warn';
+  return '';
+}
+
+function updateUI(data) {
+  const cpu = data.cpu?.usage ?? 0;
+  const ram = data.ram?.usage ?? 0;
+  const disk = data.disk?.usage ?? 0;
+  const diskUsed = data.disk?.used_gb ?? 0;
+  const diskTotal = data.disk?.total_gb ?? 1;
+  const ramUsed = data.ram?.used_gb ?? 0;
+  const ramTotal = data.ram?.total_gb ?? 1;
+  const cores = data.cpu?.cores ?? null;
+
+  // gauges
+  document.getElementById('cpu-val').innerHTML = `${Math.round(cpu)}<span class="unit">%</span>`;
+  document.getElementById('ram-val').innerHTML = `${Math.round(ram)}<span class="unit">%</span>`;
+  document.getElementById('disk-val').innerHTML = `${Math.round(disk)}<span class="unit">%</span>`;
+  document.getElementById('cpu-bar').style.width = cpu + '%';
+  document.getElementById('ram-bar').style.width = ram + '%';
+  document.getElementById('disk-bar').style.width = disk + '%';
+  if (cores) document.getElementById('cpu-cores').textContent = `${cores} cores`;
+  document.getElementById('ram-sub').textContent = `${ramUsed} / ${ramTotal} GB`;
+  document.getElementById('disk-sub').textContent = `${diskUsed} / ${diskTotal} GB`;
+
+  // status dot
+  const maxLoad = Math.max(cpu, ram, disk);
+  const dot = document.getElementById('status-dot');
+  dot.className = 'status-dot ' + statusColor(maxLoad);
+
+  // history
+  const now = new Date();
+  const label = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  labels.push(label);
+  cpuHistory.push(+cpu.toFixed(1));
+  ramHistory.push(+ram.toFixed(1));
+  if (labels.length > MAX_POINTS) { labels.shift(); cpuHistory.shift(); ramHistory.shift(); }
+
+  // line charts
+  cpuChart.data.labels = [...labels];
+  cpuChart.data.datasets[0].data = [...cpuHistory];
+  cpuChart.update('none');
+
+  ramChart.data.labels = [...labels];
+  ramChart.data.datasets[0].data = [...ramHistory];
+  ramChart.update('none');
+
+  // donut
+  diskChart.data.datasets[0].data = [+disk.toFixed(1), +(100 - disk).toFixed(1)];
+  diskChart.update();
+
+  
+  compareChart.data.datasets[0].data = [+cpu.toFixed(1), +ram.toFixed(1)];
+  compareChart.update('none');
+
+ 
+  document.getElementById('cpu-peak').innerHTML = `${Math.max(...cpuHistory).toFixed(1)}<span>%</span>`;
+  document.getElementById('cpu-avg').innerHTML = `${(cpuHistory.reduce((a,b)=>a+b,0)/cpuHistory.length).toFixed(1)}<span>%</span>`;
+  document.getElementById('ram-peak').innerHTML = `${Math.max(...ramHistory).toFixed(1)}<span>%</span>`;
+  document.getElementById('ram-avg').innerHTML = `${(ramHistory.reduce((a,b)=>a+b,0)/ramHistory.length).toFixed(1)}<span>%</span>`;
+  document.getElementById('disk-free').innerHTML = `${(diskTotal - diskUsed).toFixed(0)}<span> GB</span>`;
+
+  if (data.uptime_seconds != null) {
+    document.getElementById('uptime').textContent = fmtUptime(data.uptime_seconds);
+  }
+
+  document.getElementById('last-update').textContent = now.toLocaleTimeString();
+}
+
+async function tick() {
+  const data = await fetchMetrics();
+  updateUI(data);
+}
+
+tick();
+setInterval(tick, REFRESH_MS);
+</script>
+</body>
+</html>
