@@ -505,259 +505,179 @@
     </div>
   </div>
 </main>
-
 <script>
 const MAX_POINTS = 30;
-const REFRESH_MS = 2000;
 
-let cpuHistory = [];
-let ramHistory = [];
-let labels = [];
-let startTime = Date.now();
-let useSimulated = false;
-let fetchFails = 0;
-
-// ── Chart defaults ──────────────────────────────────────────────
+// ── Chart defaults
 Chart.defaults.color = '#5a6580';
 Chart.defaults.borderColor = 'rgba(255,255,255,0.05)';
 Chart.defaults.font.family = "'JetBrains Mono', monospace";
 Chart.defaults.font.size = 10;
 
-const lineOpts = (color) => ({
-  responsive: true,
-  maintainAspectRatio: false,
-  animation: { duration: 400 },
-  plugins: { legend: { display: false }, tooltip: {
-    backgroundColor: '#10141c',
-    borderColor: 'rgba(255,255,255,0.1)',
-    borderWidth: 1,
-    titleColor: '#8896b0',
-    bodyColor: '#e2e8f4',
-    padding: 10,
-    callbacks: { label: ctx => ` ${ctx.parsed.y.toFixed(1)}%` }
-  }},
-  scales: {
-    x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { maxTicksLimit: 6, maxRotation: 0 } },
-    y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.04)' },
-      ticks: { callback: v => v + '%', stepSize: 25 } }
-  }
-});
-
 function makeDataset(color, label) {
   return {
-    label,
-    data: [],
+    label, data: [],
     borderColor: color,
     backgroundColor: color + '18',
     borderWidth: 1.5,
     pointRadius: 0,
     pointHoverRadius: 3,
-    fill: true,
-    tension: 0.4
+    fill: true, tension: 0.4
   };
 }
+
+const lineOpts = () => ({
+  responsive: true, maintainAspectRatio: false,
+  animation: { duration: 400 },
+  plugins: { legend: { display: false } },
+  scales: {
+    x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { maxTicksLimit: 6, maxRotation: 0 } },
+    y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { callback: v => v + '%' } }
+  }
+});
 
 const cpuChart = new Chart(document.getElementById('cpuChart'), {
   type: 'line',
   data: { labels: [], datasets: [makeDataset('#3b82f6', 'CPU')] },
-  options: lineOpts('#3b82f6')
+  options: lineOpts()
 });
 
 const ramChart = new Chart(document.getElementById('ramChart'), {
   type: 'line',
   data: { labels: [], datasets: [makeDataset('#10b981', 'RAM')] },
-  options: lineOpts('#10b981')
+  options: lineOpts()
 });
 
 const diskChart = new Chart(document.getElementById('diskChart'), {
   type: 'doughnut',
   data: {
     labels: ['Used', 'Free'],
-    datasets: [{
-      data: [0, 100],
-      backgroundColor: ['#f59e0b', 'rgba(255,255,255,0.05)'],
-      borderColor: ['#f59e0b22', 'transparent'],
-      borderWidth: 1,
-      hoverOffset: 4
-    }]
+    datasets: [{ data: [0, 100], backgroundColor: ['#f59e0b', 'rgba(255,255,255,0.05)'], borderWidth: 1, hoverOffset: 4 }]
   },
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    cutout: '72%',
-    animation: { duration: 600 },
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        backgroundColor: '#10141c',
-        borderColor: 'rgba(255,255,255,0.1)',
-        borderWidth: 1,
-        bodyColor: '#e2e8f4',
-        padding: 10,
-        callbacks: { label: ctx => ` ${ctx.parsed.toFixed(1)}%` }
-      }
-    }
-  }
+  options: { responsive: true, maintainAspectRatio: false, cutout: '72%', plugins: { legend: { display: false } } }
 });
 
 const compareChart = new Chart(document.getElementById('compareChart'), {
   type: 'bar',
   data: {
     labels: ['CPU', 'RAM'],
-    datasets: [{
-      label: 'Current %',
-      data: [0, 0],
-      backgroundColor: ['#3b82f620', '#10b98120'],
-      borderColor: ['#3b82f6', '#10b981'],
-      borderWidth: 1.5,
-      borderRadius: 4
-    }]
+    datasets: [{ data: [0, 0], backgroundColor: ['#3b82f620', '#10b98120'], borderColor: ['#3b82f6', '#10b981'], borderWidth: 1.5, borderRadius: 4 }]
   },
   options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    animation: { duration: 400 },
-    plugins: { legend: { display: false }, tooltip: {
-      backgroundColor: '#10141c',
-      borderColor: 'rgba(255,255,255,0.1)',
-      borderWidth: 1,
-      bodyColor: '#e2e8f4',
-      padding: 10,
-      callbacks: { label: ctx => ` ${ctx.parsed.y.toFixed(1)}%` }
-    }},
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
     scales: {
       x: { grid: { display: false } },
-      y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.04)' },
-        ticks: { callback: v => v + '%', stepSize: 25 } }
+      y: { min: 0, max: 100, ticks: { callback: v => v + '%' } }
     }
   }
 });
 
-// ── Simulated fallback ──────────────────────────────────────────
-let simCpu = 35, simRam = 55, simDiskUsed = 220, simDiskTotal = 500;
-let simDiskPct = (simDiskUsed / simDiskTotal) * 100;
+// ── History tracking for peak/avg
+let cpuHistory = [], ramHistory = [];
+let startTime = Date.now();
 
-function simMetrics() {
-  simCpu = Math.min(99, Math.max(1, simCpu + (Math.random() - 0.46) * 8));
-  simRam = Math.min(99, Math.max(20, simRam + (Math.random() - 0.48) * 4));
-  simDiskUsed = Math.min(simDiskTotal, Math.max(50, simDiskUsed + (Math.random() - 0.49) * 2));
-  simDiskPct = (simDiskUsed / simDiskTotal) * 100;
-  return {
-    cpu: { usage: +simCpu.toFixed(1), cores: 8 },
-    ram: { usage: +simRam.toFixed(1), used_gb: +(simRam / 100 * 16).toFixed(1), total_gb: 16 },
-    disk: { usage: +simDiskPct.toFixed(1), used_gb: +simDiskUsed.toFixed(0), total_gb: simDiskTotal },
-    uptime_seconds: Math.floor((Date.now() - startTime) / 1000) + 3600 * 24 * 3
-  };
-}
-
-// ── Fetch + update ──────────────────────────────────────────────
-async function fetchMetrics() {
-  if (useSimulated) return simMetrics();
-  try {
-    const res = await fetch('http://127.0.0.1:8000/metrics', { signal: AbortSignal.timeout(5000) });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    fetchFails = 0;
-    return data;
-  } catch (e) {
-    fetchFails++;
-    if (fetchFails >= 2) {
-      useSimulated = true;
-      document.getElementById('error-bar').classList.add('visible');
-      document.getElementById('error-msg').textContent =
-        'Unable to reach /metrics — showing simulated data';
-    }
-    return simMetrics();
-  }
-}
-
-function fmtUptime(s) {
-  const d = Math.floor(s / 86400);
-  const h = Math.floor((s % 86400) / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  if (d > 0) return `${d}d ${h}h`;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m ${Math.floor(s % 60)}s`;
-}
-
-function statusColor(pct) {
-  if (pct >= 85) return 'danger';
-  if (pct >= 65) return 'warn';
-  return '';
-}
-
+// ── THE MISSING FUNCTION — this is what was broken
 function updateUI(data) {
-  const cpu = data.cpu?.usage ?? 0;
-  const ram = data.ram?.usage ?? 0;
-  const disk = data.disk?.usage ?? 0;
-  const diskUsed = data.disk?.used_gb ?? 0;
-  const diskTotal = data.disk?.total_gb ?? 1;
-  const ramUsed = data.ram?.used_gb ?? 0;
-  const ramTotal = data.ram?.total_gb ?? 1;
-  const cores = data.cpu?.cores ?? null;
+  const now = new Date().toLocaleTimeString();
 
-  // gauges
-  document.getElementById('cpu-val').innerHTML = `${Math.round(cpu)}<span class="unit">%</span>`;
-  document.getElementById('ram-val').innerHTML = `${Math.round(ram)}<span class="unit">%</span>`;
-  document.getElementById('disk-val').innerHTML = `${Math.round(disk)}<span class="unit">%</span>`;
+  // update timestamp
+  document.getElementById('last-update').textContent = now;
+
+  // CPU card
+  const cpu = data.cpu.usage;
+  document.getElementById('cpu-val').innerHTML = `${cpu}<span class="unit">%</span>`;
   document.getElementById('cpu-bar').style.width = cpu + '%';
+  document.getElementById('cpu-cores').textContent = `${data.cpu.cores} cores`;
+
+  // RAM card
+  const ram = data.ram.usage;
+  document.getElementById('ram-val').innerHTML = `${ram}<span class="unit">%</span>`;
   document.getElementById('ram-bar').style.width = ram + '%';
+  document.getElementById('ram-sub').textContent = `${data.ram.used_gb} / ${data.ram.total_gb} GB`;
+
+  // Disk card
+  const disk = data.disk.usage;
+  document.getElementById('disk-val').innerHTML = `${disk}<span class="unit">%</span>`;
   document.getElementById('disk-bar').style.width = disk + '%';
-  if (cores) document.getElementById('cpu-cores').textContent = `${cores} cores`;
-  document.getElementById('ram-sub').textContent = `${ramUsed} / ${ramTotal} GB`;
-  document.getElementById('disk-sub').textContent = `${diskUsed} / ${diskTotal} GB`;
+  document.getElementById('disk-sub').textContent = `${data.disk.used_gb} / ${data.disk.total_gb} GB`;
 
-  // status dot
-  const maxLoad = Math.max(cpu, ram, disk);
+  // Alert logic — status dot
   const dot = document.getElementById('status-dot');
-  dot.className = 'status-dot ' + statusColor(maxLoad);
+  if (cpu > 80 || ram > 85) {
+    dot.className = 'status-dot danger';
+  } else if (cpu > 60 || ram > 70) {
+    dot.className = 'status-dot warn';
+  } else {
+    dot.className = 'status-dot';
+  }
 
-  // history
-  const now = new Date();
-  const label = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  labels.push(label);
-  cpuHistory.push(+cpu.toFixed(1));
-  ramHistory.push(+ram.toFixed(1));
-  if (labels.length > MAX_POINTS) { labels.shift(); cpuHistory.shift(); ramHistory.shift(); }
+  // Push to chart history
+  cpuHistory.push(cpu);
+  ramHistory.push(ram);
+  if (cpuHistory.length > MAX_POINTS) cpuHistory.shift();
+  if (ramHistory.length > MAX_POINTS) ramHistory.shift();
 
-  // line charts
-  cpuChart.data.labels = [...labels];
+  const timeLabels = cpuHistory.map((_, i) => i === cpuHistory.length - 1 ? now : '');
+
+  // Update CPU chart
+  cpuChart.data.labels = timeLabels;
   cpuChart.data.datasets[0].data = [...cpuHistory];
-  cpuChart.update('none');
+  cpuChart.update();
 
-  ramChart.data.labels = [...labels];
+  // Update RAM chart
+  ramChart.data.labels = timeLabels;
   ramChart.data.datasets[0].data = [...ramHistory];
-  ramChart.update('none');
+  ramChart.update();
 
-  // donut
-  diskChart.data.datasets[0].data = [+disk.toFixed(1), +(100 - disk).toFixed(1)];
+  // Update disk donut
+  diskChart.data.datasets[0].data = [disk, 100 - disk];
   diskChart.update();
 
-  
-  compareChart.data.datasets[0].data = [+cpu.toFixed(1), +ram.toFixed(1)];
-  compareChart.update('none');
+  // Update compare bar
+  compareChart.data.datasets[0].data = [cpu, ram];
+  compareChart.update();
 
- 
+  // Stats snapshot
   document.getElementById('cpu-peak').innerHTML = `${Math.max(...cpuHistory).toFixed(1)}<span>%</span>`;
-  document.getElementById('cpu-avg').innerHTML = `${(cpuHistory.reduce((a,b)=>a+b,0)/cpuHistory.length).toFixed(1)}<span>%</span>`;
+  document.getElementById('cpu-avg').innerHTML = `${(cpuHistory.reduce((a,b) => a+b, 0) / cpuHistory.length).toFixed(1)}<span>%</span>`;
   document.getElementById('ram-peak').innerHTML = `${Math.max(...ramHistory).toFixed(1)}<span>%</span>`;
-  document.getElementById('ram-avg').innerHTML = `${(ramHistory.reduce((a,b)=>a+b,0)/ramHistory.length).toFixed(1)}<span>%</span>`;
-  document.getElementById('disk-free').innerHTML = `${(diskTotal - diskUsed).toFixed(0)}<span> GB</span>`;
+  document.getElementById('ram-avg').innerHTML = `${(ramHistory.reduce((a,b) => a+b, 0) / ramHistory.length).toFixed(1)}<span>%</span>`;
+  document.getElementById('disk-free').innerHTML = `${data.disk.total_gb - data.disk.used_gb}<span> GB</span>`;
 
-  if (data.uptime_seconds != null) {
-    document.getElementById('uptime').textContent = fmtUptime(data.uptime_seconds);
+  // Uptime
+  if (data.uptime_seconds) {
+    const h = Math.floor(data.uptime_seconds / 3600);
+    const m = Math.floor((data.uptime_seconds % 3600) / 60);
+    document.getElementById('uptime').textContent = `${h}h ${m}m`;
   }
-
-  document.getElementById('last-update').textContent = now.toLocaleTimeString();
 }
 
-async function tick() {
-  const data = await fetchMetrics();
-  updateUI(data);
-}
+// ── WebSocket connection
+const socket = new WebSocket(`ws://${window.location.host}/ws`);
 
-tick();
-setInterval(tick, REFRESH_MS);
+socket.onopen = () => {
+  document.getElementById('status-text').textContent = 'LIVE';
+  document.getElementById('error-bar').classList.remove('visible');
+};
+
+socket.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  updateUI(data);   // ← now this works
+};
+
+socket.onerror = () => {
+  document.getElementById('error-bar').classList.add('visible');
+  document.getElementById('error-msg').textContent = 'WebSocket connection failed';
+};
+
+socket.onclose = () => {
+  document.getElementById('status-text').textContent = 'DISCONNECTED';
+  document.getElementById('status-dot').className = 'status-dot danger';
+  document.getElementById('error-bar').classList.add('visible');
+  document.getElementById('error-msg').textContent = 'WebSocket disconnected — refresh to reconnect';
+};
 </script>
 </body>
 </html>
+
