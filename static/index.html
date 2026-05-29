@@ -409,6 +409,155 @@
 
   .error-bar.visible { display: flex; }
 
+  /* ── Alerts panel ── */
+  .alerts-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 28px;
+    overflow: hidden;
+  }
+
+  .alerts-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .alerts-title {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--dim);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .alerts-count {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    background: rgba(239,68,68,0.12);
+    color: #fca5a5;
+    border: 1px solid rgba(239,68,68,0.25);
+    padding: 1px 7px;
+    border-radius: 4px;
+    letter-spacing: 0.05em;
+    display: none;
+  }
+
+  .alerts-count.visible { display: inline; }
+
+  .alerts-clear {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 10px;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+  }
+
+  .alerts-clear:hover { border-color: var(--border2); color: var(--dim); }
+
+  .alerts-list {
+    max-height: 220px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.08) transparent;
+  }
+
+  .alerts-list::-webkit-scrollbar { width: 4px; }
+  .alerts-list::-webkit-scrollbar-track { background: transparent; }
+  .alerts-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+
+  .alert-empty {
+    padding: 28px 20px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-align: center;
+  }
+
+  .alert-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 11px 20px;
+    border-bottom: 1px solid var(--border);
+    animation: alertSlideIn 0.25s ease;
+    transition: background 0.15s;
+  }
+
+  .alert-item:last-child { border-bottom: none; }
+  .alert-item:hover { background: rgba(255,255,255,0.02); }
+
+  @keyframes alertSlideIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .alert-icon {
+    width: 20px; height: 20px;
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .alert-icon.critical { background: rgba(239,68,68,0.15); color: #f87171; }
+  .alert-icon.warning  { background: rgba(245,158,11,0.15); color: #fbbf24; }
+  .alert-icon.info     { background: rgba(59,130,246,0.15);  color: #60a5fa; }
+  .alert-icon.ok       { background: rgba(16,185,129,0.15);  color: #34d399; }
+
+  .alert-body { flex: 1; min-width: 0; }
+
+  .alert-msg {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text);
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .alert-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 3px;
+  }
+
+  .alert-time {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+  }
+
+  .alert-tag {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    padding: 1px 5px;
+    border-radius: 3px;
+    text-transform: uppercase;
+  }
+
+  .alert-tag.critical { background: rgba(239,68,68,0.12); color: #fca5a5; }
+  .alert-tag.warning  { background: rgba(245,158,11,0.12); color: #fcd34d; }
+  .alert-tag.info     { background: rgba(59,130,246,0.12);  color: #93c5fd; }
+  .alert-tag.ok       { background: rgba(16,185,129,0.12);  color: #6ee7b7; }
+
   @media (max-width: 640px) {
     main { padding: 16px; }
     header { padding: 12px 16px; }
@@ -533,6 +682,21 @@
       <div class="chart-wrap">
         <canvas id="compareChart" role="img" aria-label="CPU and RAM usage comparison bar chart"></canvas>
       </div>
+    </div>
+  </div>
+
+  <div class="section-label">// recent alerts</div>
+
+  <div class="alerts-panel">
+    <div class="alerts-header">
+      <div class="alerts-title">
+        Live alerts
+        <span class="alerts-count" id="alerts-count">0</span>
+      </div>
+      <button class="alerts-clear" id="alerts-clear" onclick="clearAlerts()">CLEAR</button>
+    </div>
+    <div class="alerts-list" id="alerts-list">
+      <div class="alert-empty" id="alerts-empty">no alerts &mdash; system normal</div>
     </div>
   </div>
 
@@ -917,6 +1081,7 @@ function connectWebSocket() {
     pushPoint(now, cpuVal, ramVal);
     refreshLineCharts();
     updateGaugesAndStats(data);
+    checkAlerts(data);
   };
 
   socket.onerror = () => {
@@ -943,6 +1108,134 @@ function connectWebSocket() {
     document.getElementById('ram-badge').textContent = 'PAUSED';
     document.getElementById('ram-badge').className = 'chart-badge hist';
   };
+}
+
+// ─────────────────────────────────────────────
+// ALERTS PANEL
+// ─────────────────────────────────────────────
+const MAX_ALERTS = 50;
+let alertLog = [];
+
+const ALERT_RULES = [
+  { id: 'cpu_critical', level: 'critical', icon: '▲', label: 'CPU',
+    check: d => (d.cpu?.usage ?? 0) >= 90,
+    msg:   d => `CPU critical — ${d.cpu.usage.toFixed(1)}% utilisation` },
+  { id: 'cpu_warning',  level: 'warning',  icon: '▲', label: 'CPU',
+    check: d => (d.cpu?.usage ?? 0) >= 75 && (d.cpu?.usage ?? 0) < 90,
+    msg:   d => `CPU high — ${d.cpu.usage.toFixed(1)}%` },
+  { id: 'ram_critical', level: 'critical', icon: '▲', label: 'RAM',
+    check: d => (d.ram?.usage ?? 0) >= 90,
+    msg:   d => `RAM critical — ${d.ram.usage.toFixed(1)}% used` },
+  { id: 'ram_warning',  level: 'warning',  icon: '▲', label: 'RAM',
+    check: d => (d.ram?.usage ?? 0) >= 75 && (d.ram?.usage ?? 0) < 90,
+    msg:   d => `RAM high — ${d.ram.usage.toFixed(1)}%` },
+  { id: 'disk_critical',level: 'critical', icon: '◆', label: 'DISK',
+    check: d => (d.disk?.usage ?? 0) >= 90,
+    msg:   d => `Disk critically full — ${d.disk.usage.toFixed(1)}%` },
+  { id: 'disk_warning', level: 'warning',  icon: '◆', label: 'DISK',
+    check: d => (d.disk?.usage ?? 0) >= 80 && (d.disk?.usage ?? 0) < 90,
+    msg:   d => `Disk usage high — ${d.disk.usage.toFixed(1)}%` },
+];
+
+// Cooldown: don't re-fire same rule within N seconds
+const COOLDOWN_MS = 30_000;
+const lastFired = {};
+
+function checkAlerts(data) {
+  const now = Date.now();
+  const fired = [];
+
+  for (const rule of ALERT_RULES) {
+    if (!rule.check(data)) continue;
+    if (lastFired[rule.id] && now - lastFired[rule.id] < COOLDOWN_MS) continue;
+    lastFired[rule.id] = now;
+    fired.push({ level: rule.level, icon: rule.icon, label: rule.label, msg: rule.msg(data) });
+  }
+
+  // Also process server-sent alerts if backend includes them
+  if (Array.isArray(data.alerts)) {
+    for (const a of data.alerts) {
+      fired.push({
+        level: a.level ?? 'info',
+        icon: a.icon ?? '●',
+        label: a.label ?? a.source ?? 'SYS',
+        msg: a.message ?? a.msg ?? JSON.stringify(a)
+      });
+    }
+  }
+
+  // Recovery notice when things calm down
+  const cpuOk  = (data.cpu?.usage  ?? 0) < 60;
+  const ramOk  = (data.ram?.usage  ?? 0) < 60;
+  const diskOk = (data.disk?.usage ?? 0) < 70;
+  if (cpuOk && ramOk && diskOk && alertLog.length > 0) {
+    const last = alertLog[0];
+    if (last.level !== 'ok' && now - (lastFired['_ok'] ?? 0) > COOLDOWN_MS * 2) {
+      lastFired['_ok'] = now;
+      fired.push({ level: 'ok', icon: '✓', label: 'SYS', msg: 'All metrics nominal' });
+    }
+  }
+
+  for (const alert of fired) pushAlert(alert);
+}
+
+function pushAlert({ level, icon, label, msg }) {
+  const time = new Date().toLocaleTimeString();
+  alertLog.unshift({ level, icon, label, msg, time });
+  if (alertLog.length > MAX_ALERTS) alertLog.pop();
+  renderAlerts();
+}
+
+function renderAlerts() {
+  const list  = document.getElementById('alerts-list');
+  const empty = document.getElementById('alerts-empty');
+  const badge = document.getElementById('alerts-count');
+
+  if (!alertLog.length) {
+    empty.style.display = 'block';
+    badge.classList.remove('visible');
+    return;
+  }
+
+  empty.style.display = 'none';
+  const critCount = alertLog.filter(a => a.level === 'critical').length;
+  const warnCount = alertLog.filter(a => a.level === 'warning').length;
+  badge.textContent = critCount ? `${critCount} crit` : `${warnCount} warn`;
+  badge.classList.toggle('visible', critCount > 0 || warnCount > 0);
+
+  // Only re-render the top item (new alerts slide in); full re-render on clear
+  const existing = list.querySelectorAll('.alert-item');
+  if (existing.length === alertLog.length) return;
+
+  // Prepend new items
+  const toAdd = alertLog.slice(0, alertLog.length - existing.length);
+  for (const a of toAdd) {
+    const el = document.createElement('div');
+    el.className = 'alert-item';
+    el.innerHTML = `
+      <div class="alert-icon ${a.level}">${a.icon}</div>
+      <div class="alert-body">
+        <div class="alert-msg">${a.msg}</div>
+        <div class="alert-meta">
+          <span class="alert-time">${a.time}</span>
+          <span class="alert-tag ${a.level}">${a.label}</span>
+        </div>
+      </div>`;
+    list.insertBefore(el, list.firstChild);
+  }
+
+  // Trim DOM to MAX_ALERTS
+  const all = list.querySelectorAll('.alert-item');
+  for (let i = MAX_ALERTS; i < all.length; i++) all[i].remove();
+}
+
+function clearAlerts() {
+  alertLog = [];
+  Object.keys(lastFired).forEach(k => delete lastFired[k]);
+  const list  = document.getElementById('alerts-list');
+  list.querySelectorAll('.alert-item').forEach(el => el.remove());
+  document.getElementById('alerts-empty').style.display = 'block';
+  document.getElementById('alerts-count').classList.remove('visible');
 }
 
 // ─────────────────────────────────────────────
