@@ -35,20 +35,68 @@ def get_metrics():
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-    try:                                   # ← wrap in try/except so crash doesn't kill server
+    try:
+
         while True:
+
             ram = psutil.virtual_memory()
             disk = psutil.disk_usage('/')
+
+            cpu_usage = psutil.cpu_percent(interval=None)
+
+            alerts = []
+
+            if cpu_usage > 80:
+                alerts.append(f"HIGH CPU USAGE: {cpu_usage:.1f}%")
+
+            if ram.percent > 85:
+                alerts.append(f"HIGH RAM USAGE: {ram.percent:.1f}%")
+
+            if disk.percent > 90:
+                alerts.append(f"HIGH DISK USAGE: {disk.percent:.1f}%")
+
             data = {
-                "cpu": {"usage": psutil.cpu_percent(interval=None), "cores": psutil.cpu_count()},
-                "ram": {"usage": ram.percent, "used_gb": round(ram.used / (1024**3), 1), "total_gb": round(ram.total / (1024**3), 1)},
-                "disk": {"usage": disk.percent, "used_gb": round(disk.used / (1024**3), 1), "total_gb": round(disk.total / (1024**3), 1)},
-                "uptime_seconds": int(time.time() - psutil.boot_time())   # ← was missing!
+
+                "alerts": alerts,
+
+                "cpu": {
+                    "usage": cpu_usage,
+                    "cores": psutil.cpu_count()
+                },
+
+                "ram": {
+                    "usage": ram.percent,
+                    "used_gb": round(ram.used / (1024 ** 3), 1),
+                    "total_gb": round(ram.total / (1024 ** 3), 1)
+                },
+
+                "disk": {
+                    "usage": disk.percent,
+                    "used_gb": round(disk.used / (1024 ** 3), 1),
+                    "total_gb": round(disk.total / (1024 ** 3), 1)
+                },
+
+                "uptime_seconds": int(
+                    time.time() - psutil.boot_time()
+                )
             }
+
+            if alerts:
+
+                with open("alerts.log", "a") as f:
+
+                    for alert in alerts:
+
+                        f.write(
+                            f"{time.strftime('%Y-%m-%d %H:%M:%S')} | {alert}\n"
+                        )
+
             await websocket.send_json(data)
+
             await asyncio.sleep(2)
+
     except Exception:
-        pass   # client disconnected cleanly
+        pass  # client disconnected cleanly
 
 @app.get("/history")
 def get_history():
