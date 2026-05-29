@@ -50,5 +50,28 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception:
         pass   # client disconnected cleanly
 
-# ← mount LAST, always
+@app.get("/history")
+def get_history():
+
+    db = SessionLocal()
+
+    metrics = (
+        db.query(Metric)
+        .order_by(Metric.timestamp.desc())
+        .limit(50)
+        .all()
+    )
+
+    db.close()
+
+    return [
+        {
+            "cpu": m.cpu,
+            "ram": m.ram,
+            "disk": m.disk,
+            "timestamp": m.timestamp
+        }
+        for m in reversed(metrics)
+    ]
+
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

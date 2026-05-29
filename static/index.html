@@ -20,11 +20,8 @@
     --muted: #5a6580;
     --dim: #8896b0;
     --cpu: #3b82f6;
-    --cpu-glow: rgba(59,130,246,0.15);
     --ram: #10b981;
-    --ram-glow: rgba(16,185,129,0.15);
     --disk: #f59e0b;
-    --disk-glow: rgba(245,158,11,0.15);
     --danger: #ef4444;
     --warn: #f59e0b;
     --ok: #10b981;
@@ -37,22 +34,14 @@
     color: var(--text);
     font-family: var(--font-ui);
     min-height: 100vh;
-    padding: 0;
     overflow-x: hidden;
   }
 
-  /* scanline effect */
   body::before {
     content: '';
     position: fixed;
     inset: 0;
-    background: repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      rgba(0,0,0,0.03) 2px,
-      rgba(0,0,0,0.03) 4px
-    );
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
     pointer-events: none;
     z-index: 1000;
   }
@@ -90,16 +79,9 @@
     animation: pulse 2s ease-in-out infinite;
   }
 
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-  }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
-  .header-right {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-  }
+  .header-right { display: flex; align-items: center; gap: 20px; }
 
   .refresh-badge {
     font-family: var(--font-mono);
@@ -133,15 +115,59 @@
     background: var(--ok);
     box-shadow: 0 0 6px var(--ok);
   }
-
   .status-dot.warn { background: var(--warn); box-shadow: 0 0 6px var(--warn); }
   .status-dot.danger { background: var(--danger); box-shadow: 0 0 6px var(--danger); }
+  .status-dot.loading { background: var(--dim); box-shadow: 0 0 6px var(--dim); animation: pulse 1s ease-in-out infinite; }
 
-  main {
-    padding: 28px;
-    max-width: 1400px;
-    margin: 0 auto;
+  /* Loading overlay */
+  #loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 500;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    transition: opacity 0.4s ease;
   }
+
+  #loading-overlay.hidden { opacity: 0; pointer-events: none; }
+
+  .loading-label {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .loading-bar-track {
+    width: 220px;
+    height: 2px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .loading-bar-fill {
+    height: 100%;
+    background: var(--cpu);
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.3s ease;
+  }
+
+  .loading-steps {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    min-height: 16px;
+  }
+
+  main { padding: 28px; max-width: 1400px; margin: 0 auto; }
 
   .section-label {
     font-family: var(--font-mono);
@@ -151,9 +177,31 @@
     color: var(--muted);
     margin-bottom: 16px;
     padding-left: 2px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
 
-  /* Gauge row */
+  .section-label .hist-tag {
+    background: rgba(59,130,246,0.1);
+    border: 1px solid rgba(59,130,246,0.2);
+    color: var(--cpu);
+    font-size: 9px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    letter-spacing: 0.08em;
+  }
+
+  .section-label .live-tag {
+    background: rgba(16,185,129,0.1);
+    border: 1px solid rgba(16,185,129,0.2);
+    color: var(--ok);
+    font-size: 9px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    letter-spacing: 0.08em;
+  }
+
   .gauges {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -208,11 +256,7 @@
     letter-spacing: -0.02em;
   }
 
-  .gauge-value .unit {
-    font-size: 16px;
-    color: var(--muted);
-    font-weight: 300;
-  }
+  .gauge-value .unit { font-size: 16px; color: var(--muted); font-weight: 300; }
 
   .gauge-card.cpu .gauge-value { color: var(--cpu); }
   .gauge-card.ram .gauge-value { color: var(--ram); }
@@ -256,7 +300,6 @@
   .gauge-card.ram .gauge-glow { background: var(--ram); }
   .gauge-card.disk .gauge-glow { background: var(--disk); }
 
-  /* Charts */
   .charts-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
@@ -294,15 +337,31 @@
     letter-spacing: 0.05em;
   }
 
-  .chart-badge.live {
-    background: rgba(16,185,129,0.1);
-    color: var(--ok);
-    border: 1px solid rgba(16,185,129,0.2);
-  }
+  .chart-badge.live { background: rgba(16,185,129,0.1); color: var(--ok); border: 1px solid rgba(16,185,129,0.2); }
+  .chart-badge.hist { background: rgba(59,130,246,0.1); color: var(--cpu); border: 1px solid rgba(59,130,246,0.2); }
 
   .chart-wrap { position: relative; height: 180px; }
 
-  /* Bottom stats */
+  /* History boundary marker on charts */
+  .chart-card .hist-marker {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    margin-top: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .chart-card .hist-marker::before {
+    content: '';
+    display: inline-block;
+    width: 20px;
+    height: 1px;
+    background: repeating-linear-gradient(90deg, var(--muted) 0, var(--muted) 3px, transparent 3px, transparent 6px);
+  }
+
   .stat-row {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -332,13 +391,8 @@
     color: var(--text);
   }
 
-  .stat-box-val span {
-    font-size: 11px;
-    color: var(--muted);
-    font-weight: 300;
-  }
+  .stat-box-val span { font-size: 11px; color: var(--muted); font-weight: 300; }
 
-  /* Error state */
   .error-bar {
     background: rgba(239,68,68,0.08);
     border: 1px solid rgba(239,68,68,0.2);
@@ -360,10 +414,18 @@
     header { padding: 12px 16px; }
     .gauge-value { font-size: 28px; }
     .charts-grid { grid-template-columns: 1fr; }
+    .refresh-badge { display: none; }
   }
 </style>
 </head>
 <body>
+
+<!-- Loading overlay shown while /history is fetching -->
+<div id="loading-overlay">
+  <div class="loading-label">Initialising</div>
+  <div class="loading-bar-track"><div class="loading-bar-fill" id="load-bar"></div></div>
+  <div class="loading-steps" id="load-step">fetching history…</div>
+</div>
 
 <header>
   <div class="logo">
@@ -371,11 +433,11 @@
     SYS_MONITOR
   </div>
   <div class="header-right">
-    <div class="refresh-badge">REFRESH / 2s</div>
+    <div class="refresh-badge">WS / LIVE</div>
     <div id="last-update">--:--:--</div>
     <div class="status-pill">
-      <div class="status-dot" id="status-dot"></div>
-      <span id="status-text">LIVE</span>
+      <div class="status-dot loading" id="status-dot"></div>
+      <span id="status-text">LOADING</span>
     </div>
   </div>
 </header>
@@ -383,7 +445,7 @@
 <main>
   <div class="error-bar" id="error-bar">
     <span>⚠</span>
-    <span id="error-msg">Unable to reach /metrics — showing simulated data</span>
+    <span id="error-msg">Connection error</span>
   </div>
 
   <div class="section-label">// resource usage</div>
@@ -398,9 +460,7 @@
         </div>
         <div class="gauge-value" id="cpu-val">—<span class="unit">%</span></div>
       </div>
-      <div class="progress-track">
-        <div class="progress-fill" id="cpu-bar" style="width:0%"></div>
-      </div>
+      <div class="progress-track"><div class="progress-fill" id="cpu-bar" style="width:0%"></div></div>
     </div>
 
     <div class="gauge-card ram">
@@ -412,9 +472,7 @@
         </div>
         <div class="gauge-value" id="ram-val">—<span class="unit">%</span></div>
       </div>
-      <div class="progress-track">
-        <div class="progress-fill" id="ram-bar" style="width:0%"></div>
-      </div>
+      <div class="progress-track"><div class="progress-fill" id="ram-bar" style="width:0%"></div></div>
     </div>
 
     <div class="gauge-card disk">
@@ -426,33 +484,35 @@
         </div>
         <div class="gauge-value" id="disk-val">—<span class="unit">%</span></div>
       </div>
-      <div class="progress-track">
-        <div class="progress-fill" id="disk-bar" style="width:0%"></div>
-      </div>
+      <div class="progress-track"><div class="progress-fill" id="disk-bar" style="width:0%"></div></div>
     </div>
   </div>
 
-  <div class="section-label">// history — last 60s</div>
+  <div class="section-label" id="chart-section-label">
+    // history — loading
+  </div>
 
   <div class="charts-grid">
     <div class="chart-card">
       <div class="chart-card-header">
         <div class="chart-title">CPU — time series</div>
-        <div class="chart-badge live">LIVE</div>
+        <div class="chart-badge hist" id="cpu-badge">HISTORY</div>
       </div>
       <div class="chart-wrap">
         <canvas id="cpuChart" role="img" aria-label="CPU usage over time line chart"></canvas>
       </div>
+      <div class="hist-marker" id="cpu-hist-marker">history → live boundary</div>
     </div>
 
     <div class="chart-card">
       <div class="chart-card-header">
         <div class="chart-title">RAM — time series</div>
-        <div class="chart-badge live">LIVE</div>
+        <div class="chart-badge hist" id="ram-badge">HISTORY</div>
       </div>
       <div class="chart-wrap">
         <canvas id="ramChart" role="img" aria-label="RAM usage over time line chart"></canvas>
       </div>
+      <div class="hist-marker" id="ram-hist-marker">history → live boundary</div>
     </div>
 
     <div class="chart-card">
@@ -503,12 +563,58 @@
       <div class="stat-box-label">Uptime</div>
       <div class="stat-box-val" id="uptime">—</div>
     </div>
+    <div class="stat-box">
+      <div class="stat-box-label">History Points</div>
+      <div class="stat-box-val" id="hist-count">—<span> pts</span></div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-box-label">Data Source</div>
+      <div class="stat-box-val" id="data-source" style="font-size:13px">—</div>
+    </div>
   </div>
 </main>
-<script>
-const MAX_POINTS = 30;
 
-// ── Chart defaults
+<script>
+// ─────────────────────────────────────────────
+// CONFIG — adjust to match your backend
+// ─────────────────────────────────────────────
+const HISTORY_ENDPOINT = '/history';      // GET — returns array of data points
+const WS_ENDPOINT = `ws://${window.location.host}/ws`;
+const MAX_POINTS = 60;                    // max points visible on time-series charts
+
+// How to read history endpoint response.
+// Expected shape (array):
+// [
+//   { timestamp: "14:20:01", cpu: { usage: 45, cores: 8 }, ram: { usage: 62, used_gb: 9.9, total_gb: 16 }, disk: { usage: 55, used_gb: 275, total_gb: 500 }, uptime_seconds: 86400 },
+//   ...
+// ]
+// OR if your endpoint wraps it: { data: [...] } — handled below.
+
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+let cpuHistory = [];
+let ramHistory = [];
+let chartLabels = [];
+let historyCount = 0;   // how many points came from /history
+let wsConnected = false;
+
+// ─────────────────────────────────────────────
+// LOADING UI
+// ─────────────────────────────────────────────
+function setLoadStep(msg, pct) {
+  document.getElementById('load-step').textContent = msg;
+  document.getElementById('load-bar').style.width = pct + '%';
+}
+
+function hideOverlay() {
+  document.getElementById('loading-overlay').classList.add('hidden');
+  setTimeout(() => document.getElementById('loading-overlay').remove(), 500);
+}
+
+// ─────────────────────────────────────────────
+// CHART SETUP
+// ─────────────────────────────────────────────
 Chart.defaults.color = '#5a6580';
 Chart.defaults.borderColor = 'rgba(255,255,255,0.05)';
 Chart.defaults.font.family = "'JetBrains Mono', monospace";
@@ -522,17 +628,34 @@ function makeDataset(color, label) {
     borderWidth: 1.5,
     pointRadius: 0,
     pointHoverRadius: 3,
-    fill: true, tension: 0.4
+    fill: true,
+    tension: 0.4
   };
 }
 
 const lineOpts = () => ({
-  responsive: true, maintainAspectRatio: false,
-  animation: { duration: 400 },
-  plugins: { legend: { display: false } },
+  responsive: true,
+  maintainAspectRatio: false,
+  animation: { duration: 300 },
+  plugins: { legend: { display: false }, tooltip: {
+    backgroundColor: '#10141c',
+    borderColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    titleColor: '#8896b0',
+    bodyColor: '#e2e8f4',
+    padding: 10,
+    callbacks: { label: ctx => ` ${ctx.parsed.y.toFixed(1)}%` }
+  }},
   scales: {
-    x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { maxTicksLimit: 6, maxRotation: 0 } },
-    y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { callback: v => v + '%' } }
+    x: {
+      grid: { color: 'rgba(255,255,255,0.04)' },
+      ticks: { maxTicksLimit: 8, maxRotation: 0, autoSkip: true }
+    },
+    y: {
+      min: 0, max: 100,
+      grid: { color: 'rgba(255,255,255,0.04)' },
+      ticks: { callback: v => v + '%', stepSize: 25 }
+    }
   }
 });
 
@@ -552,57 +675,114 @@ const diskChart = new Chart(document.getElementById('diskChart'), {
   type: 'doughnut',
   data: {
     labels: ['Used', 'Free'],
-    datasets: [{ data: [0, 100], backgroundColor: ['#f59e0b', 'rgba(255,255,255,0.05)'], borderWidth: 1, hoverOffset: 4 }]
+    datasets: [{
+      data: [0, 100],
+      backgroundColor: ['#f59e0b', 'rgba(255,255,255,0.05)'],
+      borderColor: ['#f59e0b22', 'transparent'],
+      borderWidth: 1, hoverOffset: 4
+    }]
   },
-  options: { responsive: true, maintainAspectRatio: false, cutout: '72%', plugins: { legend: { display: false } } }
+  options: {
+    responsive: true, maintainAspectRatio: false, cutout: '72%',
+    animation: { duration: 600 },
+    plugins: { legend: { display: false }, tooltip: {
+      backgroundColor: '#10141c',
+      borderColor: 'rgba(255,255,255,0.1)',
+      borderWidth: 1,
+      bodyColor: '#e2e8f4',
+      padding: 10,
+      callbacks: { label: ctx => ` ${ctx.parsed.toFixed(1)}%` }
+    }}
+  }
 });
 
 const compareChart = new Chart(document.getElementById('compareChart'), {
   type: 'bar',
   data: {
     labels: ['CPU', 'RAM'],
-    datasets: [{ data: [0, 0], backgroundColor: ['#3b82f620', '#10b98120'], borderColor: ['#3b82f6', '#10b981'], borderWidth: 1.5, borderRadius: 4 }]
+    datasets: [{
+      data: [0, 0],
+      backgroundColor: ['#3b82f620', '#10b98120'],
+      borderColor: ['#3b82f6', '#10b981'],
+      borderWidth: 1.5, borderRadius: 4
+    }]
   },
   options: {
     responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
+    animation: { duration: 400 },
+    plugins: { legend: { display: false }, tooltip: {
+      backgroundColor: '#10141c',
+      borderColor: 'rgba(255,255,255,0.1)',
+      borderWidth: 1,
+      bodyColor: '#e2e8f4',
+      padding: 10,
+      callbacks: { label: ctx => ` ${ctx.parsed.y.toFixed(1)}%` }
+    }},
     scales: {
       x: { grid: { display: false } },
-      y: { min: 0, max: 100, ticks: { callback: v => v + '%' } }
+      y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { callback: v => v + '%', stepSize: 25 } }
     }
   }
 });
 
-// ── History tracking for peak/avg
-let cpuHistory = [], ramHistory = [];
-let startTime = Date.now();
+// ─────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────
+function fmtUptime(s) {
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m ${Math.floor(s % 60)}s`;
+}
 
-// ── THE MISSING FUNCTION — this is what was broken
-function updateUI(data) {
-  const now = new Date().toLocaleTimeString();
+function pushPoint(label, cpuVal, ramVal) {
+  chartLabels.push(label);
+  cpuHistory.push(+cpuVal);
+  ramHistory.push(+ramVal);
+  if (chartLabels.length > MAX_POINTS) {
+    chartLabels.shift();
+    cpuHistory.shift();
+    ramHistory.shift();
+  }
+}
 
-  // update timestamp
-  document.getElementById('last-update').textContent = now;
+function refreshLineCharts() {
+  cpuChart.data.labels = [...chartLabels];
+  cpuChart.data.datasets[0].data = [...cpuHistory];
+  cpuChart.update('none');
 
-  // CPU card
-  const cpu = data.cpu.usage;
-  document.getElementById('cpu-val').innerHTML = `${cpu}<span class="unit">%</span>`;
+  ramChart.data.labels = [...chartLabels];
+  ramChart.data.datasets[0].data = [...ramHistory];
+  ramChart.update('none');
+}
+
+function updateGaugesAndStats(data) {
+  const cpu = data.cpu?.usage ?? 0;
+  const ram = data.ram?.usage ?? 0;
+  const disk = data.disk?.usage ?? 0;
+  const diskUsed = data.disk?.used_gb ?? 0;
+  const diskTotal = data.disk?.total_gb ?? 1;
+  const ramUsed = data.ram?.used_gb ?? 0;
+  const ramTotal = data.ram?.total_gb ?? 1;
+
+  document.getElementById('cpu-val').innerHTML = `${Math.round(cpu)}<span class="unit">%</span>`;
+  document.getElementById('ram-val').innerHTML = `${Math.round(ram)}<span class="unit">%</span>`;
+  document.getElementById('disk-val').innerHTML = `${Math.round(disk)}<span class="unit">%</span>`;
   document.getElementById('cpu-bar').style.width = cpu + '%';
-  document.getElementById('cpu-cores').textContent = `${data.cpu.cores} cores`;
-
-  // RAM card
-  const ram = data.ram.usage;
-  document.getElementById('ram-val').innerHTML = `${ram}<span class="unit">%</span>`;
   document.getElementById('ram-bar').style.width = ram + '%';
-  document.getElementById('ram-sub').textContent = `${data.ram.used_gb} / ${data.ram.total_gb} GB`;
-
-  // Disk card
-  const disk = data.disk.usage;
-  document.getElementById('disk-val').innerHTML = `${disk}<span class="unit">%</span>`;
   document.getElementById('disk-bar').style.width = disk + '%';
-  document.getElementById('disk-sub').textContent = `${data.disk.used_gb} / ${data.disk.total_gb} GB`;
+  if (data.cpu?.cores) document.getElementById('cpu-cores').textContent = `${data.cpu.cores} cores`;
+  document.getElementById('ram-sub').textContent = `${ramUsed} / ${ramTotal} GB`;
+  document.getElementById('disk-sub').textContent = `${diskUsed} / ${diskTotal} GB`;
 
-  // Alert logic — status dot
+  diskChart.data.datasets[0].data = [+disk.toFixed(1), +(100 - disk).toFixed(1)];
+  diskChart.update();
+
+  compareChart.data.datasets[0].data = [+cpu.toFixed(1), +ram.toFixed(1)];
+  compareChart.update('none');
+
   const dot = document.getElementById('status-dot');
   if (cpu > 80 || ram > 85) {
     dot.className = 'status-dot danger';
@@ -612,72 +792,166 @@ function updateUI(data) {
     dot.className = 'status-dot';
   }
 
-  // Push to chart history
-  cpuHistory.push(cpu);
-  ramHistory.push(ram);
-  if (cpuHistory.length > MAX_POINTS) cpuHistory.shift();
-  if (ramHistory.length > MAX_POINTS) ramHistory.shift();
+  if (cpuHistory.length > 0) {
+    document.getElementById('cpu-peak').innerHTML = `${Math.max(...cpuHistory).toFixed(1)}<span>%</span>`;
+    document.getElementById('cpu-avg').innerHTML = `${(cpuHistory.reduce((a,b) => a+b, 0) / cpuHistory.length).toFixed(1)}<span>%</span>`;
+  }
+  if (ramHistory.length > 0) {
+    document.getElementById('ram-peak').innerHTML = `${Math.max(...ramHistory).toFixed(1)}<span>%</span>`;
+    document.getElementById('ram-avg').innerHTML = `${(ramHistory.reduce((a,b) => a+b, 0) / ramHistory.length).toFixed(1)}<span>%</span>`;
+  }
 
-  const timeLabels = cpuHistory.map((_, i) => i === cpuHistory.length - 1 ? now : '');
+  document.getElementById('disk-free').innerHTML = `${(diskTotal - diskUsed).toFixed(0)}<span> GB</span>`;
+  if (data.uptime_seconds != null) {
+    document.getElementById('uptime').textContent = fmtUptime(data.uptime_seconds);
+  }
+  document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+}
 
-  // Update CPU chart
-  cpuChart.data.labels = timeLabels;
-  cpuChart.data.datasets[0].data = [...cpuHistory];
-  cpuChart.update();
+// ─────────────────────────────────────────────
+// STEP 1 — LOAD HISTORY
+// ─────────────────────────────────────────────
+async function loadHistory() {
+  setLoadStep('fetching /history…', 20);
 
-  // Update RAM chart
-  ramChart.data.labels = timeLabels;
-  ramChart.data.datasets[0].data = [...ramHistory];
-  ramChart.update();
+  try {
+    const res = await fetch(HISTORY_ENDPOINT);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const raw = await res.json();
 
-  // Update disk donut
-  diskChart.data.datasets[0].data = [disk, 100 - disk];
-  diskChart.update();
+    // support both array response and wrapped { data: [...] }
+    const points = Array.isArray(raw) ? raw : (raw.data ?? raw.history ?? []);
 
-  // Update compare bar
-  compareChart.data.datasets[0].data = [cpu, ram];
-  compareChart.update();
+    if (!points.length) {
+      setLoadStep('no history data — skipping to live', 60);
+      historyCount = 0;
+      return;
+    }
 
-  // Stats snapshot
-  document.getElementById('cpu-peak').innerHTML = `${Math.max(...cpuHistory).toFixed(1)}<span>%</span>`;
-  document.getElementById('cpu-avg').innerHTML = `${(cpuHistory.reduce((a,b) => a+b, 0) / cpuHistory.length).toFixed(1)}<span>%</span>`;
-  document.getElementById('ram-peak').innerHTML = `${Math.max(...ramHistory).toFixed(1)}<span>%</span>`;
-  document.getElementById('ram-avg').innerHTML = `${(ramHistory.reduce((a,b) => a+b, 0) / ramHistory.length).toFixed(1)}<span>%</span>`;
-  document.getElementById('disk-free').innerHTML = `${data.disk.total_gb - data.disk.used_gb}<span> GB</span>`;
+    setLoadStep(`seeding charts with ${points.length} points…`, 50);
 
-  // Uptime
-  if (data.uptime_seconds) {
-    const h = Math.floor(data.uptime_seconds / 3600);
-    const m = Math.floor((data.uptime_seconds % 3600) / 60);
-    document.getElementById('uptime').textContent = `${h}h ${m}m`;
+    // Use only last MAX_POINTS entries from history
+    const slice = points.slice(-MAX_POINTS);
+    historyCount = slice.length;
+
+    for (const pt of slice) {
+      // Support both { timestamp } string and { ts } or epoch
+      const label = pt.timestamp ?? pt.ts ?? pt.time ?? new Date(pt.epoch ?? Date.now()).toLocaleTimeString();
+      const cpuVal = pt.cpu?.usage ?? pt.cpu_usage ?? pt.cpu ?? 0;
+      const ramVal = pt.ram?.usage ?? pt.ram_usage ?? pt.ram ?? 0;
+      pushPoint(label, cpuVal, ramVal);
+    }
+
+    // Seed charts with history data — no animation for batch load
+    cpuChart.data.labels = [...chartLabels];
+    cpuChart.data.datasets[0].data = [...cpuHistory];
+    cpuChart.update('none');
+
+    ramChart.data.labels = [...chartLabels];
+    ramChart.data.datasets[0].data = [...ramHistory];
+    ramChart.update('none');
+
+    // Show the most recent history point in gauges while WS connects
+    const last = slice[slice.length - 1];
+    updateGaugesAndStats(last);
+
+    document.getElementById('hist-count').innerHTML = `${historyCount}<span> pts</span>`;
+    document.getElementById('data-source').textContent = 'HIST+WS';
+
+    // Update section label to show history loaded
+    document.getElementById('chart-section-label').innerHTML =
+      `// time series &nbsp;<span class="hist-tag">${historyCount} history pts</span> <span class="live-tag" id="live-tag" style="display:none">+ live</span>`;
+
+    setLoadStep(`loaded ${historyCount} history points`, 75);
+
+  } catch (err) {
+    console.warn('[history] fetch failed:', err.message);
+    setLoadStep('history unavailable — connecting live…', 75);
+    historyCount = 0;
+    document.getElementById('hist-count').innerHTML = `0<span> pts</span>`;
+    document.getElementById('data-source').textContent = 'LIVE ONLY';
   }
 }
 
-// ── WebSocket connection
-const socket = new WebSocket(`ws://${window.location.host}/ws`);
+// ─────────────────────────────────────────────
+// STEP 2 — CONNECT WEBSOCKET
+// ─────────────────────────────────────────────
+function connectWebSocket() {
+  setLoadStep('connecting WebSocket…', 88);
 
-socket.onopen = () => {
-  document.getElementById('status-text').textContent = 'LIVE';
-  document.getElementById('error-bar').classList.remove('visible');
-};
+  const socket = new WebSocket(WS_ENDPOINT);
 
-socket.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  updateUI(data);   // ← now this works
-};
+  socket.onopen = () => {
+    wsConnected = true;
+    setLoadStep('connected — streaming live data', 100);
 
-socket.onerror = () => {
-  document.getElementById('error-bar').classList.add('visible');
-  document.getElementById('error-msg').textContent = 'WebSocket connection failed';
-};
+    document.getElementById('status-text').textContent = 'LIVE';
+    document.getElementById('status-dot').className = 'status-dot';
+    document.getElementById('error-bar').classList.remove('visible');
 
-socket.onclose = () => {
-  document.getElementById('status-text').textContent = 'DISCONNECTED';
-  document.getElementById('status-dot').className = 'status-dot danger';
-  document.getElementById('error-bar').classList.add('visible');
-  document.getElementById('error-msg').textContent = 'WebSocket disconnected — refresh to reconnect';
-};
+    // Switch chart badges to LIVE
+    document.getElementById('cpu-badge').textContent = 'LIVE';
+    document.getElementById('cpu-badge').className = 'chart-badge live';
+    document.getElementById('ram-badge').textContent = 'LIVE';
+    document.getElementById('ram-badge').className = 'chart-badge live';
+
+    // Show live tag in section label
+    const liveTag = document.getElementById('live-tag');
+    if (liveTag) liveTag.style.display = 'inline';
+
+    // Hide history boundary markers once live
+    document.getElementById('cpu-hist-marker').style.display = 'none';
+    document.getElementById('ram-hist-marker').style.display = 'none';
+
+    setTimeout(hideOverlay, 300);
+  };
+
+  socket.onmessage = (event) => {
+    let data;
+    try { data = JSON.parse(event.data); } catch { return; }
+
+    const now = new Date().toLocaleTimeString();
+    const cpuVal = data.cpu?.usage ?? 0;
+    const ramVal = data.ram?.usage ?? 0;
+
+    pushPoint(now, cpuVal, ramVal);
+    refreshLineCharts();
+    updateGaugesAndStats(data);
+  };
+
+  socket.onerror = () => {
+    if (!wsConnected) {
+      // WS failed before ever connecting — still hide overlay and show error
+      hideOverlay();
+    }
+    document.getElementById('error-bar').classList.add('visible');
+    document.getElementById('error-msg').textContent = 'WebSocket connection failed';
+    document.getElementById('status-dot').className = 'status-dot danger';
+    document.getElementById('status-text').textContent = 'ERROR';
+  };
+
+  socket.onclose = () => {
+    wsConnected = false;
+    document.getElementById('status-text').textContent = 'DISCONNECTED';
+    document.getElementById('status-dot').className = 'status-dot danger';
+    document.getElementById('error-bar').classList.add('visible');
+    document.getElementById('error-msg').textContent = 'WebSocket disconnected — refresh to reconnect';
+
+    // Switch badges back
+    document.getElementById('cpu-badge').textContent = 'PAUSED';
+    document.getElementById('cpu-badge').className = 'chart-badge hist';
+    document.getElementById('ram-badge').textContent = 'PAUSED';
+    document.getElementById('ram-badge').className = 'chart-badge hist';
+  };
+}
+
+// ─────────────────────────────────────────────
+// BOOT SEQUENCE: history → websocket
+// ─────────────────────────────────────────────
+(async () => {
+  await loadHistory();
+  connectWebSocket();
+})();
 </script>
 </body>
 </html>
-
