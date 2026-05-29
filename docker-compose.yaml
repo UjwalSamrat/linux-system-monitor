@@ -1,0 +1,15 @@
+services:
+  monitor:
+
+    build: .
+
+    container_name: linux-system-monitor
+
+    ports:
+      - "8000:8000"
+
+    volumes:
+      - ./metrics.db:/app/metrics.db
+      - ./alerts.log:/app/alerts.log
+
+    restart: unless-stopped
