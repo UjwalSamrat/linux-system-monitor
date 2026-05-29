@@ -1,4 +1,4 @@
-# linux-system-monitor
+# Linux-System-Monitor
 
 A real-time Linux system monitoring dashboard built with **FastAPI**, **WebSockets**, **SQLite**, and **Chart.js** — designed to observe CPU, RAM, and disk metrics, store historical data, and surface threshold-based alerts with zero polling on the frontend.
 
