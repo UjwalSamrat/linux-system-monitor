@@ -743,7 +743,7 @@
 // CONFIG — adjust to match your backend
 // ─────────────────────────────────────────────
 const HISTORY_ENDPOINT = '/history';      // GET — returns array of data points
-const WS_ENDPOINT = `ws://${window.location.host}/ws`;
+const WS_ENDPOINT = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws`;
 const MAX_POINTS = 60;                    // max points visible on time-series charts
 
 // How to read history endpoint response.
